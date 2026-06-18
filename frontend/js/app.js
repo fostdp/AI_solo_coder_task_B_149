@@ -107,12 +107,30 @@ const App = (function () {
                 });
             } catch (e) { console.warn('[App] RangePanel init:', e); }
         }
+        if (window.MaterialCompare) {
+            try { MaterialCompare.init(); }
+            catch (e) { console.warn('[App] MaterialCompare init:', e); }
+        }
+        if (window.PreloadAnalysis) {
+            try { PreloadAnalysis.init(); }
+            catch (e) { console.warn('[App] PreloadAnalysis init:', e); }
+        }
+        if (window.VirtualOperation) {
+            try { VirtualOperation.init(); }
+            catch (e) { console.warn('[App] VirtualOperation init:', e); }
+        }
 
         TrebuchetModel.setArmAngle(-Math.PI / 6);
         TrebuchetModel.resetProjectile();
 
         updateSpringEnergyUI();
         calculateTrajectory();
+
+        initNewFeatureTabs();
+        try { if (window.MaterialCompare) MaterialCompare.init(); } catch (e) { console.warn('[App] MaterialCompare init:', e); }
+        try { if (window.EraCompare) EraCompare.init(); } catch (e) { console.warn('[App] EraCompare init:', e); }
+        try { if (window.PreloadAnalysis) PreloadAnalysis.init(); } catch (e) { console.warn('[App] PreloadAnalysis init:', e); }
+        try { if (window.VirtualOperation) VirtualOperation.init(); } catch (e) { console.warn('[App] VirtualOperation init:', e); }
 
         startDataPolling();
         setInterval(updateTimeDisplay, 1000);
@@ -130,6 +148,43 @@ const App = (function () {
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
             });
         });
+    }
+
+    function initNewFeatureTabs() {
+        // 原 initTabs() 使用 querySelectorAll('.tab-btn') 会自动绑定新增的4个按钮，无需额外操作
+        // 但是为了稳妥，可以重新触发一次绑定
+        try {
+            const tabs = document.querySelectorAll('.tab-btn');
+            const contents = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => {
+                // 避免重复绑定：先移除事件监听器
+                const clone = tab.cloneNode(true);
+                if (tab.parentNode) tab.parentNode.replaceChild(clone, tab);
+            });
+            // 重新绑定（复用原有逻辑思路）
+            document.querySelectorAll('.tab-btn').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const target = document.getElementById(tab.dataset.tab);
+                    if (target) target.classList.add('active');
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+                    // 如果是虚拟操作tab，触发一次尺寸计算
+                    if (tab.dataset.tab === 'virtual-view' && window.VirtualOperation && VirtualOperation.onResize) {
+                        setTimeout(VirtualOperation.onResize, 100);
+                    }
+                    if (tab.dataset.tab === 'preload-view' && window.PreloadAnalysis && PreloadAnalysis.onResize) {
+                        setTimeout(PreloadAnalysis.onResize, 100);
+                    }
+                    if (tab.dataset.tab === 'era-compare-view' && window.EraCompare && EraCompare.onResize) {
+                        setTimeout(EraCompare.onResize, 100);
+                    }
+                });
+            });
+        } catch (e) {
+            console.warn('[App] initNewFeatureTabs warning:', e);
+        }
     }
 
     function initTimeDisplay() { updateTimeDisplay(); }
@@ -178,12 +233,27 @@ const App = (function () {
         const torsionSlider = document.getElementById('torsion-slider');
         const torsionValue = document.getElementById('torsion-value');
 
+        const getSelectedMaterial = () => {
+            try {
+                const matSelect = document.getElementById('spring-material');
+                if (matSelect && matSelect.value) {
+                    const matKey = matSelect.value;
+                    if (TrebuchetPhysics.MATERIALS && TrebuchetPhysics.MATERIALS[matKey]) {
+                        return TrebuchetPhysics.MATERIALS[matKey];
+                    }
+                }
+            } catch (e) {
+                console.warn('[App] getSelectedMaterial warning:', e);
+            }
+            return TrebuchetPhysics.MATERIALS.steel65mn;
+        };
+
         const update = () => {
             const config = {
                 wireDiameter: (parseFloat(wireD.value) || 20) / 1000,
                 coilMeanDiameter: (parseFloat(meanD.value) || 150) / 1000,
                 activeCoils: parseInt(coils.value) || 12,
-                material: TrebuchetPhysics.MATERIALS.steel65mn
+                material: getSelectedMaterial()
             };
             SpringAnimation.setConfig(config);
             const angle = parseFloat(torsionSlider.value) || 0;
@@ -196,15 +266,33 @@ const App = (function () {
         meanD.addEventListener('input', update);
         coils.addEventListener('input', update);
         torsionSlider.addEventListener('input', update);
+        try {
+            const matSelect = document.getElementById('spring-material');
+            if (matSelect) matSelect.addEventListener('change', update);
+        } catch (e) {
+            console.warn('[App] spring-material listener warning:', e);
+        }
     }
 
     function updateSpringEnergyUI() {
+        let selectedMaterial = TrebuchetPhysics.MATERIALS.steel65mn;
+        try {
+            const matSelect = document.getElementById('spring-material');
+            if (matSelect && matSelect.value) {
+                const matKey = matSelect.value;
+                if (TrebuchetPhysics.MATERIALS && TrebuchetPhysics.MATERIALS[matKey]) {
+                    selectedMaterial = TrebuchetPhysics.MATERIALS[matKey];
+                }
+            }
+        } catch (e) {
+            console.warn('[App] updateSpringEnergyUI material warning:', e);
+        }
         const torsionDeg = parseFloat(document.getElementById('torsion-slider').value) || 0;
         const config = {
             wireDiameter: (parseFloat(document.getElementById('spring-wire-d').value) || 20) / 1000,
             coilMeanDiameter: (parseFloat(document.getElementById('spring-mean-d').value) || 150) / 1000,
             activeCoils: parseInt(document.getElementById('spring-coils').value) || 12,
-            material: TrebuchetPhysics.MATERIALS.steel65mn
+            material: selectedMaterial
         };
         const result = TrebuchetPhysics.calculateSpringEnergy(
             config, TrebuchetPhysics.degToRad(torsionDeg)

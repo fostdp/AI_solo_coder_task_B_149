@@ -357,12 +357,394 @@ const TrebuchetPhysics = (function () {
         return Math.sqrt(2.0 * springEnergy * efficiency / projectileMass);
     }
 
+    MATERIALS.steel65mn.era = "modern";
+    MATERIALS.steel50crva.era = "modern";
+    Object.assign(MATERIALS, {
+        sinew_ox: {
+            shearModulus: 1.2e9,
+            yieldStrength: 85e6,
+            density: 1200,
+            fatigueDuctilityCoeff: 1.8,
+            fatigueDuctilityExp: -0.7,
+            cyclicStrengthCoeff: 280e6,
+            cyclicStrengthExp: -0.12,
+            name: "黄牛肌腱",
+            era: "ancient"
+        },
+        hemp_rope: {
+            shearModulus: 0.8e9,
+            yieldStrength: 45e6,
+            density: 900,
+            fatigueDuctilityCoeff: 1.2,
+            fatigueDuctilityExp: -0.65,
+            cyclicStrengthCoeff: 180e6,
+            cyclicStrengthExp: -0.10,
+            name: "麻绳",
+            era: "ancient"
+        },
+        ox_tendon: {
+            shearModulus: 1.5e9,
+            yieldStrength: 95e6,
+            density: 1150,
+            fatigueDuctilityCoeff: 2.0,
+            fatigueDuctilityExp: -0.72,
+            cyclicStrengthCoeff: 350e6,
+            cyclicStrengthExp: -0.11,
+            name: "牛筋(腱)",
+            era: "ancient"
+        },
+        modern_synthetic: {
+            shearModulus: 18e9,
+            yieldStrength: 3600e6,
+            density: 1440,
+            fatigueDuctilityCoeff: 0.08,
+            fatigueDuctilityExp: -0.40,
+            cyclicStrengthCoeff: 5200e6,
+            cyclicStrengthExp: -0.05,
+            name: "现代合成纤维(芳纶)",
+            era: "modern"
+        },
+        modern_steel_alloy: {
+            shearModulus: 82e9,
+            yieldStrength: 2200e6,
+            density: 7830,
+            fatigueDuctilityCoeff: 0.35,
+            fatigueDuctilityExp: -0.52,
+            cyclicStrengthCoeff: 3200e6,
+            cyclicStrengthExp: -0.06,
+            name: "现代合金钢",
+            era: "modern"
+        }
+    });
+
+    const TREBUCHET_TYPES = {
+        ancient_traction: {
+            name: "古代人力牵引式",
+            era: "ancient",
+            velocityBoost: 1.0,
+            efficiency: 0.60,
+            massMult: 1.0,
+            description: "利用数十至上百人牵引绳索释放，组织复杂但材料需求最低"
+        },
+        ancient_torsion: {
+            name: "古代扭力弹簧式",
+            era: "ancient",
+            velocityBoost: 1.0,
+            efficiency: 0.85,
+            massMult: 1.0,
+            description: "利用扭绞的绳束/肌腱储能，是罗马 scorpio 和 onager 采用的核心技术"
+        },
+        ancient_counterweight: {
+            name: "古代配重式",
+            era: "ancient",
+            velocityBoost: 1.0,
+            efficiency: 0.75,
+            massMult: 0.3,
+            description: "中世纪 trebuchet 典型结构，利用重型配重臂下落带动投射"
+        },
+        modern_carriage_catapult: {
+            name: "现代车载弹射器",
+            era: "modern",
+            velocityBoost: 2.5,
+            efficiency: 0.95,
+            massMult: 0.02,
+            description: "现代液压/气动储能，用于无人机和靶机发射"
+        },
+        modern_aircraft_catapult: {
+            name: "现代蒸汽/电磁弹射器",
+            era: "modern",
+            velocityBoost: 5.0,
+            efficiency: 0.98,
+            massMult: 0.001,
+            description: "航母舰载机使用，几十吨级飞行器短距离加速起飞"
+        }
+    };
+
+    function deepCloneConfig(config) {
+        return {
+            material: config.material,
+            wireDiameter: config.wireDiameter,
+            coilMeanDiameter: config.coilMeanDiameter,
+            activeCoils: config.activeCoils,
+            cyclicState: createCyclicState(config.material)
+        };
+    }
+
+    function calculateSpringEnergyWithPreload(config, torsionAngleRad, preloadAngleRad) {
+        const tempConfig = deepCloneConfig(config);
+        const thetaTotal = preloadAngleRad + torsionAngleRad;
+        const springConstant = calculateSpringConstant(tempConfig);
+        const Gcurr = tempConfig.cyclicState.degradedShearModulus;
+        const Gorg = tempConfig.material.shearModulus;
+        const modulusReduction = Gcurr / Gorg;
+
+        const stressAmplitude = calculateShearStress(tempConfig, thetaTotal);
+        updateCyclicSoftening(tempConfig, thetaTotal, stressAmplitude);
+
+        const storedEnergy = 0.5 * springConstant
+            * (thetaTotal * thetaTotal - preloadAngleRad * preloadAngleRad)
+            * modulusReduction;
+
+        const preloadFactor = preloadAngleRad / Math.max(preloadAngleRad + torsionAngleRad, 1e-9);
+        const baseEfficiency = calculateSpringEfficiency(tempConfig, torsionAngleRad);
+        const efficiency = baseEfficiency * (1.0 + preloadFactor * 0.08);
+        const clampedEfficiency = Math.max(0, Math.min(1, efficiency));
+
+        const yieldRatio = stressAmplitude / tempConfig.material.yieldStrength;
+        const damage = tempConfig.cyclicState.currentDamageParameter;
+        const elasticStress = Math.min(stressAmplitude, tempConfig.cyclicState.degradedYieldStrength);
+        const tauDiff = Math.max(0, stressAmplitude - tempConfig.cyclicState.degradedYieldStrength);
+        const plasticStrain = tauDiff / Gcurr;
+
+        let riskLevel = "normal";
+        if (yieldRatio > 0.85 || damage > 0.7) riskLevel = "critical";
+        else if (yieldRatio > 0.70 || damage > 0.4) riskLevel = "warning";
+
+        return {
+            springConstant,
+            storedEnergy,
+            shearStress: stressAmplitude,
+            elasticStress,
+            plasticStrain,
+            efficiency: clampedEfficiency,
+            yieldStrengthRatio: yieldRatio,
+            cyclicDamageRatio: damage,
+            cycleCount: tempConfig.cyclicState.cycleCount,
+            fractureRisk: yieldRatio > 0.85,
+            fatigueRisk: damage > 0.5,
+            riskLevel,
+            modulusReduction,
+            preloadAngleDeg: radToDeg(preloadAngleRad)
+        };
+    }
+
+    function buildConfigFromParams(params, material) {
+        return {
+            material: material,
+            wireDiameter: params.wireDiameterMm / 1000,
+            coilMeanDiameter: params.meanDiameterMm / 1000,
+            activeCoils: params.activeCoils,
+            cyclicState: createCyclicState(material)
+        };
+    }
+
+    function compareMaterials(params) {
+        const { torsionAngleDeg, massKg, launchAngleDeg } = params;
+        const torsionAngleRad = degToRad(torsionAngleDeg);
+        const materialIds = Object.keys(MATERIALS);
+        const results = [];
+
+        for (const materialId of materialIds) {
+            const material = MATERIALS[materialId];
+            const config = buildConfigFromParams(params, material);
+            const spring = calculateSpringEnergy(config, torsionAngleRad);
+            const v = Math.sqrt(2 * spring.storedEnergy * spring.efficiency / Math.max(massKg, 1e-9));
+            const projectile = {
+                mass: massKg,
+                diameter: 0.2,
+                crossSectionArea: Math.PI * 0.1 * 0.1,
+                dragCoefficientIncompressible: 0.47
+            };
+            const traj = predictTrajectoryRange(projectile, v, launchAngleDeg);
+
+            results.push({
+                materialId: materialId,
+                name: material.name,
+                era: material.era,
+                storedEnergy: spring.storedEnergy,
+                springConstant: spring.springConstant,
+                shearStressMpa: spring.shearStress / 1e6,
+                efficiency: spring.efficiency,
+                cyclicDamageRatio: spring.cyclicDamageRatio,
+                predictedRange: traj.predictedRange,
+                maxHeight: traj.maxHeight,
+                flightTime: traj.flightTime
+            });
+        }
+
+        results.sort((a, b) => b.predictedRange - a.predictedRange);
+        results.forEach((r, idx) => { r.rangeRanking = idx + 1; });
+        return results;
+    }
+
+    function compareTrebuchetTypes(params) {
+        const { baseVelocity, massKg, launchAngleDeg, diameterM = 0.2, dragCd = 0.47 } = params;
+        const radius = diameterM / 2;
+        const crossSectionArea = Math.PI * radius * radius;
+        const typeIds = Object.keys(TREBUCHET_TYPES);
+        const results = [];
+
+        for (const typeId of typeIds) {
+            const type = TREBUCHET_TYPES[typeId];
+            const adjustedMass = massKg * type.massMult;
+            const adjustedVelocity = baseVelocity * type.velocityBoost * type.efficiency;
+            const projectile = {
+                mass: adjustedMass,
+                diameter: diameterM,
+                crossSectionArea: crossSectionArea,
+                dragCoefficientIncompressible: dragCd
+            };
+            const fullTraj = calculateFullTrajectory(projectile, adjustedVelocity, launchAngleDeg);
+
+            results.push({
+                typeId: typeId,
+                name: type.name,
+                era: type.era,
+                description: type.description,
+                adjustedVelocity: adjustedVelocity,
+                adjustedMass: adjustedMass,
+                efficiency: type.efficiency,
+                predictedRange: fullTraj.predictedRange,
+                maxHeight: fullTraj.maxHeight,
+                flightTime: fullTraj.flightTime,
+                maxMach: fullTraj.maxMach,
+                impactVelocity: fullTraj.impactVelocity
+            });
+        }
+
+        results.sort((a, b) => b.predictedRange - a.predictedRange);
+        results.forEach((r, idx) => { r.rangeRanking = idx + 1; });
+        return results;
+    }
+
+    function analyzePreloadEffect(params) {
+        const {
+            maxPreloadAngleDeg,
+            totalTorsionAngleDeg = 360,
+            massKg = 10,
+            launchAngleDeg = 45,
+            wireDiameterMm = 20,
+            meanDiameterMm = 150,
+            activeCoils = 12,
+            materialId = 'steel65mn',
+            steps = 20
+        } = params;
+
+        const material = MATERIALS[materialId] || MATERIALS.steel65mn;
+        const baseConfig = {
+            material: material,
+            wireDiameter: wireDiameterMm / 1000,
+            coilMeanDiameter: meanDiameterMm / 1000,
+            activeCoils: activeCoils
+        };
+
+        const diameterM = 0.2;
+        const crossSectionArea = Math.PI * 0.1 * 0.1;
+        const projectile = {
+            mass: massKg,
+            diameter: diameterM,
+            crossSectionArea: crossSectionArea,
+            dragCoefficientIncompressible: 0.47
+        };
+
+        const totalTorsionRad = degToRad(totalTorsionAngleDeg);
+        const baselineConfig = deepCloneConfig(baseConfig);
+        const baselineSpring = calculateSpringEnergyWithPreload(baselineConfig, totalTorsionRad, 0);
+        const baselineV = Math.sqrt(2 * baselineSpring.storedEnergy * baselineSpring.efficiency / Math.max(massKg, 1e-9));
+        const baselineTraj = predictTrajectoryRange(projectile, baselineV, launchAngleDeg);
+        const baselineRangeM = baselineTraj.predictedRange;
+
+        const points = [];
+        let maxRangeM = baselineRangeM;
+        let bestPreloadAngleDeg = 0;
+
+        const stepSize = maxPreloadAngleDeg / Math.max(steps, 1);
+        for (let i = 0; i <= steps; i++) {
+            const preloadAngleDeg = i * stepSize;
+            const preloadAngleRad = degToRad(preloadAngleDeg);
+            const torsionAngleRad = degToRad(totalTorsionAngleDeg - preloadAngleDeg);
+
+            const config = deepCloneConfig(baseConfig);
+            const spring = calculateSpringEnergyWithPreload(config, torsionAngleRad, preloadAngleRad);
+            const v = Math.sqrt(2 * spring.storedEnergy * spring.efficiency / Math.max(massKg, 1e-9));
+            const traj = predictTrajectoryRange(projectile, v, launchAngleDeg);
+
+            points.push({
+                preloadAngleDeg: preloadAngleDeg,
+                rangeM: traj.predictedRange,
+                energyJ: spring.storedEnergy,
+                efficiency: spring.efficiency
+            });
+
+            if (traj.predictedRange > maxRangeM) {
+                maxRangeM = traj.predictedRange;
+                bestPreloadAngleDeg = preloadAngleDeg;
+            }
+        }
+
+        const improvementPercent = baselineRangeM > 0
+            ? ((maxRangeM - baselineRangeM) / baselineRangeM) * 100
+            : 0;
+
+        return {
+            points: points,
+            bestPreloadAngleDeg: bestPreloadAngleDeg,
+            maxRangeM: maxRangeM,
+            baselineRangeM: baselineRangeM,
+            improvementPercent: improvementPercent
+        };
+    }
+
+    function virtualLaunch(params) {
+        const {
+            torsionAngleDeg,
+            preloadAngleDeg,
+            massKg,
+            launchAngleDeg,
+            wireDiameterMm,
+            meanDiameterMm,
+            activeCoils,
+            materialId,
+            diameterM = 0.2,
+            dragCd = 0.47
+        } = params;
+
+        const material = MATERIALS[materialId] || MATERIALS.steel65mn;
+        const config = {
+            material: material,
+            wireDiameter: wireDiameterMm / 1000,
+            coilMeanDiameter: meanDiameterMm / 1000,
+            activeCoils: activeCoils,
+            cyclicState: createCyclicState(material)
+        };
+
+        const torsionAngleRad = degToRad(torsionAngleDeg);
+        const preloadAngleRad = degToRad(preloadAngleDeg);
+        const spring = calculateSpringEnergyWithPreload(config, torsionAngleRad, preloadAngleRad);
+
+        const releaseVelocity = Math.sqrt(
+            2 * spring.storedEnergy * spring.efficiency / Math.max(massKg, 1e-9)
+        );
+
+        const radius = diameterM / 2;
+        const crossSectionArea = Math.PI * radius * radius;
+        const projectile = {
+            mass: massKg,
+            diameter: diameterM,
+            crossSectionArea: crossSectionArea,
+            dragCoefficientIncompressible: dragCd
+        };
+
+        const trajectory = calculateFullTrajectory(projectile, releaseVelocity, launchAngleDeg);
+        const trajectoryPoints = trajectory.trajectoryPoints.map(p => [p.x, p.y]);
+        const trajectoryMachPoints = trajectory.machProfile.map(m => [m.x, m.mach]);
+
+        return {
+            spring: spring,
+            releaseVelocity: releaseVelocity,
+            trajectory: trajectory,
+            trajectoryPoints: trajectoryPoints,
+            trajectoryMachPoints: trajectoryMachPoints
+        };
+    }
+
     return {
         GRAVITY,
         AIR_DENSITY,
         SPEED_OF_SOUND,
         GAMMA,
         MATERIALS,
+        TREBUCHET_TYPES,
         degToRad,
         radToDeg,
         createCyclicState,
@@ -375,9 +757,14 @@ const TrebuchetPhysics = (function () {
         calculateShearStress,
         calculateSpringEfficiency,
         calculateSpringEnergy,
+        calculateSpringEnergyWithPreload,
         predictTrajectoryRange,
         calculateFullTrajectory,
         findOptimalLaunchAngle,
-        calculateReleaseVelocity
+        calculateReleaseVelocity,
+        compareMaterials,
+        compareTrebuchetTypes,
+        analyzePreloadEffect,
+        virtualLaunch
     };
 })();

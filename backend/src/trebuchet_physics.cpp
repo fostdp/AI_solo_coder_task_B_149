@@ -417,5 +417,230 @@ double findOptimalLaunchAngle(
     return best_angle;
 }
 
+
+
+SpringEnergyResult calculateSpringEnergyWithPreload(
+    TorsionSpringConfig& config,
+    double torsion_angle_rad,
+    double preload_angle_rad
+) {
+    if (config.cyclic_state.cycle_count == 0) {
+        config.cyclic_state = initializeCyclicState(config.material);
+    }
+
+    double preload_clamped = std::clamp(preload_angle_rad, 0.0, preload_angle_rad + torsion_angle_rad);
+    double theta_total = preload_clamped + std::max(0.0, torsion_angle_rad);
+    double theta_preload = preload_clamped;
+
+    SpringEnergyResult result;
+    result.spring_constant = calculateSpringConstant(config);
+    double G_current = config.cyclic_state.degraded_shear_modulus;
+    double G_original = config.material.shear_modulus;
+    double modulus_reduction = G_current / G_original;
+
+    double stress_amplitude = calculateShearStress(config, theta_total);
+    updateCyclicSoftening(config, theta_total, stress_amplitude);
+
+    result.shear_stress = stress_amplitude;
+    result.elastic_stress = std::min(stress_amplitude, config.cyclic_state.degraded_yield_strength);
+    double tau_diff = std::max(0.0, stress_amplitude - config.cyclic_state.degraded_yield_strength);
+    result.plastic_strain = tau_diff / G_current;
+
+    result.stored_energy = 0.5 * result.spring_constant
+                           * (theta_total * theta_total - theta_preload * theta_preload)
+                           * modulus_reduction;
+    result.stored_energy = std::max(0.0, result.stored_energy);
+
+    double base_efficiency = calculateSpringEfficiency(config, theta_total);
+    double preload_factor = preload_clamped / std::max(preload_clamped + torsion_angle_rad, 1e-9);
+    preload_factor = std::clamp(preload_factor, 0.0, 1.0);
+    result.efficiency = base_efficiency * (1.0 + preload_factor * 0.08);
+    result.efficiency = std::clamp(result.efficiency, 0.0, 1.0);
+
+    result.yield_strength_ratio = result.shear_stress
+                                  / config.material.yield_strength;
+    result.cycle_count = config.cyclic_state.cycle_count;
+    result.cyclic_damage_ratio = config.cyclic_state.current_damage_parameter;
+    result.modulus_reduction = modulus_reduction;
+    result.back_stress_pa = config.cyclic_state.back_stress;
+    result.degraded_yield_strength_pa = config.cyclic_state.degraded_yield_strength;
+    result.fracture_risk = result.yield_strength_ratio > 0.85;
+    result.fatigue_risk = result.cyclic_damage_ratio > 0.5;
+
+    calculateMinerDamage(config.cyclic_state, result.plastic_strain, config.material);
+    result.cyclic_damage_ratio = config.cyclic_state.current_damage_parameter;
+    result.fatigue_risk = result.cyclic_damage_ratio > 0.5;
+
+    return result;
+}
+
+std::vector<MaterialComparisonResult> compareMaterials(
+    const TorsionSpringConfig& base_config,
+    const std::vector<std::pair<std::string, SpringMaterial>>& materials,
+    double torsion_angle_rad,
+    double projectile_mass_kg,
+    double launch_angle_deg,
+    ProjectileConfig base_projectile
+) {
+    std::vector<MaterialComparisonResult> results;
+    results.reserve(materials.size());
+
+    for (size_t i = 0; i < materials.size(); ++i) {
+        TorsionSpringConfig config_copy = base_config;
+        config_copy.material = materials[i].second;
+        config_copy.cyclic_state = initializeCyclicState(materials[i].second);
+
+        SpringEnergyResult energy_res = calculateSpringEnergy(config_copy, torsion_angle_rad);
+
+        double safe_mass = std::max(1e-9, projectile_mass_kg);
+        double effective_energy = energy_res.stored_energy * energy_res.efficiency;
+        double v_release = 0.0;
+        if (effective_energy > 0.0) {
+            v_release = std::sqrt(2.0 * effective_energy / safe_mass);
+        }
+        v_release = std::max(0.0, v_release);
+
+        ProjectileConfig proj_copy = base_projectile;
+        proj_copy.mass = safe_mass;
+        RangePredictionResult traj_res = predictTrajectoryRange(
+            proj_copy, v_release, launch_angle_deg
+        );
+
+        MaterialComparisonResult item;
+        item.material_id = materials[i].first;
+        item.material_name = materials[i].second.name;
+        item.era = materials[i].second.era;
+        item.stored_energy = energy_res.stored_energy;
+        item.spring_constant = energy_res.spring_constant;
+        item.shear_stress_mpa = energy_res.shear_stress / 1e6;
+        item.efficiency = energy_res.efficiency;
+        item.cyclic_damage_ratio = energy_res.cyclic_damage_ratio;
+        item.predicted_range_m = traj_res.predicted_range;
+        item.predicted_height_m = traj_res.max_height;
+        item.flight_time_s = traj_res.flight_time;
+        results.push_back(item);
+    }
+
+    return results;
+}
+
+std::vector<TrebuchetComparisonResult> compareTrebuchetTypes(
+    const ProjectileConfig& base_projectile,
+    double base_release_velocity,
+    double launch_angle_deg
+) {
+    std::vector<std::string> type_ids = {
+        "ancient_traction",
+        "ancient_torsion",
+        "ancient_counterweight",
+        "modern_carriage_catapult",
+        "modern_aircraft_catapult"
+    };
+    std::vector<std::string> type_names = {
+        "Ancient Traction",
+        "Ancient Torsion",
+        "Ancient Counterweight",
+        "Modern Carriage Catapult",
+        "Modern Aircraft Catapult"
+    };
+    std::vector<std::string> type_eras = {
+        ERA_ANCIENT,
+        ERA_ANCIENT,
+        ERA_ANCIENT,
+        ERA_MODERN,
+        ERA_MODERN
+    };
+
+    std::vector<double> velocity_boosts = {1.0, 1.0, 1.0, 2.5, 5.0};
+    std::vector<double> mass_multipliers = {1.0, 1.0, 1.0, 0.02, 0.001};
+    std::vector<double> efficiencies = {0.60, 0.85, 0.75, 0.95, 0.98};
+
+    std::vector<TrebuchetComparisonResult> results;
+    results.reserve(type_ids.size());
+
+    for (size_t i = 0; i < type_ids.size(); ++i) {
+        double adjusted_vel = base_release_velocity * velocity_boosts[i] * efficiencies[i];
+        adjusted_vel = std::max(0.0, adjusted_vel);
+
+        double adjusted_mass = base_projectile.mass * mass_multipliers[i];
+        adjusted_mass = std::max(1e-9, adjusted_mass);
+
+        ProjectileConfig proj_copy = base_projectile;
+        proj_copy.mass = adjusted_mass;
+
+        RangePredictionResult traj_res = predictTrajectoryRange(
+            proj_copy, adjusted_vel, launch_angle_deg
+        );
+
+        TrebuchetComparisonResult item;
+        item.type_id = type_ids[i];
+        item.type_name = type_names[i];
+        item.era = type_eras[i];
+        item.release_velocity = adjusted_vel;
+        item.predicted_range_m = traj_res.predicted_range;
+        item.max_height_m = traj_res.max_height;
+        item.flight_time_s = traj_res.flight_time;
+        item.max_mach = traj_res.max_mach;
+        item.impact_velocity = traj_res.impact_velocity;
+        item.projectile_mass_kg = adjusted_mass;
+        item.efficiency = efficiencies[i];
+        results.push_back(item);
+    }
+
+    return results;
+}
+
+std::vector<std::pair<double, double>> analyzePreloadEffect(
+    const TorsionSpringConfig& config,
+    double torsion_angle_deg,
+    double max_preload_angle_deg,
+    double projectile_mass_kg,
+    double launch_angle_deg,
+    const ProjectileConfig& base_projectile,
+    int steps
+) {
+    int safe_steps = std::max(2, steps);
+    std::vector<std::pair<double, double>> results;
+    results.reserve(safe_steps);
+
+    double torsion_rad = convertDegToRad(torsion_angle_deg);
+    torsion_rad = std::max(0.0, torsion_rad);
+
+    double max_preload_rad = convertDegToRad(max_preload_angle_deg);
+    max_preload_rad = std::max(0.0, max_preload_rad);
+
+    double safe_mass = std::max(1e-9, projectile_mass_kg);
+
+    for (int i = 0; i < safe_steps; ++i) {
+        double t = static_cast<double>(i) / static_cast<double>(safe_steps - 1);
+        double preload_rad = t * max_preload_rad;
+
+        TorsionSpringConfig config_copy = config;
+        config_copy.cyclic_state = initializeCyclicState(config.material);
+
+        SpringEnergyResult energy_res = calculateSpringEnergyWithPreload(
+            config_copy, torsion_rad, preload_rad
+        );
+
+        double effective_energy = energy_res.stored_energy * energy_res.efficiency;
+        double v_release = 0.0;
+        if (effective_energy > 0.0) {
+            v_release = std::sqrt(2.0 * effective_energy / safe_mass);
+        }
+        v_release = std::max(0.0, v_release);
+
+        ProjectileConfig proj_copy = base_projectile;
+        proj_copy.mass = safe_mass;
+        RangePredictionResult traj_res = predictTrajectoryRange(
+            proj_copy, v_release, launch_angle_deg
+        );
+
+        double preload_deg = convertRadToDeg(preload_rad);
+        results.emplace_back(preload_deg, traj_res.predicted_range);
+    }
+
+    return results;
+}
+
 }
 }

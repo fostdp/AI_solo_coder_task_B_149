@@ -17,6 +17,7 @@ struct SpringMaterial {
     double cyclic_strength_coefficient;
     double cyclic_strength_exponent;
     std::string name;
+    std::string era;
 };
 
 struct CyclicSofteningState {
@@ -35,6 +36,7 @@ struct TorsionSpringConfig {
     int active_coils;
     SpringMaterial material;
     CyclicSofteningState cyclic_state;
+    double preload_angle_rad;
 };
 
 struct SpringEnergyResult {
@@ -96,7 +98,8 @@ const SpringMaterial STEEL_65MN = {
     -0.58,
     1300e6,
     -0.10,
-    "65Mn弹簧钢"
+    "65Mn弹簧钢",
+    "modern"
 };
 
 const SpringMaterial STEEL_50CRVA = {
@@ -107,8 +110,72 @@ const SpringMaterial STEEL_50CRVA = {
     -0.55,
     1650e6,
     -0.08,
-    "50CrVA弹簧钢"
+    "50CrVA弹簧钢",
+    "modern"
 };
+
+const SpringMaterial SINEW_OX = {
+    1.2e9,
+    85e6,
+    1200.0,
+    1.8,
+    -0.7,
+    280e6,
+    -0.12,
+    "黄牛肌腱",
+    "ancient"
+};
+
+const SpringMaterial HEMP_ROPE = {
+    0.8e9,
+    45e6,
+    900.0,
+    1.2,
+    -0.65,
+    180e6,
+    -0.10,
+    "麻绳",
+    "ancient"
+};
+
+const SpringMaterial OX_TENDON = {
+    1.5e9,
+    95e6,
+    1150.0,
+    2.0,
+    -0.72,
+    350e6,
+    -0.11,
+    "牛筋(腱)",
+    "ancient"
+};
+
+const SpringMaterial MODERN_SYNTHETIC = {
+    18e9,
+    3600e6,
+    1440.0,
+    0.08,
+    -0.40,
+    5200e6,
+    -0.05,
+    "现代合成纤维(芳纶/Kevlar)",
+    "modern"
+};
+
+const SpringMaterial MODERN_STEEL_ALLOY = {
+    82e9,
+    2200e6,
+    7830.0,
+    0.35,
+    -0.52,
+    3200e6,
+    -0.06,
+    "现代合金钢弹簧",
+    "modern"
+};
+
+const std::string ERA_ANCIENT = "ancient";
+const std::string ERA_MODERN = "modern";
 
 constexpr double GRAVITY = 9.80665;
 constexpr double AIR_DENSITY = 1.225;
@@ -196,6 +263,42 @@ double findOptimalLaunchAngle(
 
 double convertDegToRad(double deg);
 double convertRadToDeg(double rad);
+
+SpringEnergyResult calculateSpringEnergyWithPreload(TorsionSpringConfig& config, double torsion_angle_rad, double preload_angle_rad);
+
+struct MaterialComparisonResult {
+    std::string material_id;
+    std::string material_name;
+    std::string era;
+    double stored_energy;
+    double spring_constant;
+    double shear_stress_mpa;
+    double efficiency;
+    double cyclic_damage_ratio;
+    double predicted_range_m;
+    double predicted_height_m;
+    double flight_time_s;
+};
+
+std::vector<MaterialComparisonResult> compareMaterials(const TorsionSpringConfig& base_config, const std::vector<std::pair<std::string, SpringMaterial>>& materials, double torsion_angle_rad, double projectile_mass_kg, double launch_angle_deg, ProjectileConfig base_projectile);
+
+struct TrebuchetComparisonResult {
+    std::string type_id;
+    std::string type_name;
+    std::string era;
+    double release_velocity;
+    double predicted_range_m;
+    double max_height_m;
+    double flight_time_s;
+    double max_mach;
+    double impact_velocity;
+    double projectile_mass_kg;
+    double efficiency;
+};
+
+std::vector<TrebuchetComparisonResult> compareTrebuchetTypes(const ProjectileConfig& base_projectile, double base_release_velocity, double launch_angle_deg);
+
+std::vector<std::pair<double, double>> analyzePreloadEffect(const TorsionSpringConfig& config, double torsion_angle_deg, double max_preload_angle_deg, double projectile_mass_kg, double launch_angle_deg, const ProjectileConfig& base_projectile, int steps = 20);
 
 }
 }

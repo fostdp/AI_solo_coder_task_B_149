@@ -53,6 +53,77 @@ const ApiClient = (function () {
         return request('/api/machine-status');
     }
 
+    async function getMaterials() {
+        return request('/api/materials');
+    }
+
+    async function compareMaterials(params = {}) {
+        const mapping = {
+            angleDeg: 'angle_deg',
+            massKg: 'mass_kg',
+            launchAngleDeg: 'launch_angle_deg',
+            wireMm: 'wire_mm',
+            meanMm: 'mean_mm',
+            coils: 'coils'
+        };
+        const query = Object.entries(params)
+            .map(([k, v]) => `${mapping[k] || k}=${encodeURIComponent(v)}`)
+            .join('&');
+        return request(`/api/compare-materials?${query}`);
+    }
+
+    async function compareTrebuchets(params = {}) {
+        const mapping = {
+            baseVelocity: 'base_velocity',
+            massKg: 'mass_kg',
+            launchAngleDeg: 'launch_angle_deg',
+            diameterM: 'diameter_m'
+        };
+        const query = Object.entries(params)
+            .map(([k, v]) => `${mapping[k] || k}=${encodeURIComponent(v)}`)
+            .join('&');
+        return request(`/api/compare-trebuchets?${query}`);
+    }
+
+    async function analyzePreload(params = {}) {
+        const mapping = {
+            maxAngleDeg: 'max_angle_deg',
+            totalAngleDeg: 'total_angle_deg',
+            massKg: 'mass_kg',
+            launchAngleDeg: 'launch_angle_deg',
+            wireMm: 'wire_mm',
+            meanMm: 'mean_mm',
+            coils: 'coils',
+            material: 'material',
+            steps: 'steps'
+        };
+        const query = Object.entries(params)
+            .map(([k, v]) => `${mapping[k] || k}=${encodeURIComponent(v)}`)
+            .join('&');
+        return request(`/api/analyze-preload?${query}`);
+    }
+
+    async function virtualLaunch(params = {}) {
+        const mapping = {
+            torsionAngleDeg: 'torsion_angle_deg',
+            preloadDeg: 'preload_deg',
+            massKg: 'mass_kg',
+            launchAngleDeg: 'launch_angle_deg',
+            wireMm: 'wire_mm',
+            meanMm: 'mean_mm',
+            coils: 'coils',
+            material: 'material'
+        };
+        const query = Object.entries(params)
+            .map(([k, v]) => `${mapping[k] || k}=${encodeURIComponent(v)}`)
+            .join('&');
+        return request(`/api/virtual-launch?${query}`);
+    }
+
+    async function getTrebuchetTypes() {
+        return request('/api/trebuchet-types');
+    }
+
     return {
         setBaseUrl,
         health,
@@ -60,6 +131,12 @@ const ApiClient = (function () {
         springEnergy,
         getSensorData,
         getAlerts,
-        getMachineStatus
+        getMachineStatus,
+        getMaterials,
+        compareMaterials,
+        compareTrebuchets,
+        analyzePreload,
+        virtualLaunch,
+        getTrebuchetTypes
     };
 })();

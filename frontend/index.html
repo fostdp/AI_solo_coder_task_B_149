@@ -39,6 +39,10 @@
                         <button class="tab-btn active" data-tab="3d-view">三维模型</button>
                         <button class="tab-btn" data-tab="spring-view">弹簧储能仿真</button>
                         <button class="tab-btn" data-tab="trajectory-view">弹道轨迹</button>
+                        <button class="tab-btn" data-tab="material-compare-view">材料储能对比</button>
+                        <button class="tab-btn" data-tab="era-compare-view">跨时代对比</button>
+                        <button class="tab-btn" data-tab="preload-view">预紧力优化</button>
+                        <button class="tab-btn" data-tab="virtual-view">虚拟操作体验</button>
                     </div>
 
                     <div class="tab-content active" id="3d-view">
@@ -214,6 +218,138 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="tab-content" id="material-compare-view">
+                      <div class="feature-tab-content material-compare-container">
+                        <div class="material-compare-params">
+                          <h3 style="color:#ffb347;margin:0 0 16px 0;padding-bottom:8px;border-bottom:1px solid rgba(255,179,71,0.3)">计算参数</h3>
+                          <div class="form-group"><label>扭转角 (°):</label><input type="number" id="mc-torsion" value="120" min="10" max="720" step="5"></div>
+                          <div class="form-group"><label>弹丸质量 (kg):</label><input type="number" id="mc-mass" value="10" min="0.5" max="500" step="0.5"></div>
+                          <div class="form-group"><label>发射仰角 (°):</label><input type="range" id="mc-angle" min="5" max="85" value="45" step="1"><span id="mc-angle-value">45°</span></div>
+                          <hr class="section-divider">
+                          <div class="form-group"><label>钢丝直径 (mm):</label><input type="number" id="mc-wire" value="20" min="1" max="100" step="0.5"></div>
+                          <div class="form-group"><label>弹簧中径 (mm):</label><input type="number" id="mc-mean" value="150" min="10" max="500" step="5"></div>
+                          <div class="form-group"><label>有效圈数:</label><input type="number" id="mc-coils" value="12" min="1" max="100" step="1"></div>
+                          <hr class="section-divider">
+                          <button id="mc-calc" class="action-btn primary full-width">计算材料对比</button>
+                          <button id="mc-calc-local" class="action-btn secondary full-width" style="margin-top:8px">(纯前端快速计算)</button>
+                          <p class="input-hint">古代扭力材料：黄牛肌腱、麻绳、牛筋<br>现代材料：65Mn钢、50CrVA钢、芳纶纤维、合金钢</p>
+                        </div>
+                        <div class="material-compare-results">
+                          <h3 style="color:#ffb347;margin:0 0 16px 0;padding-bottom:8px;border-bottom:1px solid rgba(255,179,71,0.3)">七种材料性能对比 <span id="mc-count" style="font-size:12px;color:#8aa;font-weight:400"></span></h3>
+                          <div id="mc-table-wrap" style="overflow:auto;max-height:calc(100% - 56px)"><div class="loading">点击"计算材料对比"查看结果...</div></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tab-content" id="era-compare-view">
+                      <div class="feature-tab-content era-compare-container">
+                        <div class="era-panel">
+                          <h3>计算参数 <span class="era-badge ancient">ANCIENT</span><span class="era-badge modern">MODERN</span></h3>
+                          <div class="form-group"><label>基准释放速度 (m/s):</label><input type="number" id="ec-velocity" value="35" min="5" max="300" step="1"></div>
+                          <div class="form-group"><label>基准弹丸质量 (kg):</label><input type="number" id="ec-mass" value="10" min="0.1" max="1000" step="0.5"></div>
+                          <div class="form-group"><label>发射仰角 (°):</label><input type="range" id="ec-angle" min="5" max="85" value="45" step="1"><span id="ec-angle-value">45°</span></div>
+                          <div class="form-group"><label>弹丸直径 (m):</label><input type="number" id="ec-diameter" value="0.2" min="0.01" max="2" step="0.01"></div>
+                          <hr class="section-divider">
+                          <button id="ec-calc" class="action-btn primary full-width">计算跨时代对比</button>
+                          <button id="ec-calc-local" class="action-btn secondary full-width" style="margin-top:8px">(纯前端快速计算)</button>
+                          <p class="input-hint">涵盖5种典型投石机/弹射器<br>古代3类 + 现代2类</p>
+                          <hr class="section-divider">
+                          <h3 style="margin-top:8px">射程可视化</h3>
+                          <div class="canvas-wrapper-in-panel" style="height:220px"><canvas id="era-chart-canvas"></canvas></div>
+                        </div>
+                        <div class="era-panel">
+                          <h3>跨时代弹射器性能 <span id="ec-count" style="font-size:12px;color:#8aa;font-weight:400"></span></h3>
+                          <div id="ec-cards-wrap" style="overflow:auto;max-height:calc(100% - 56px)"><div class="loading">点击"计算跨时代对比"查看结果...</div></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tab-content" id="preload-view">
+                      <div class="feature-tab-content preload-container">
+                        <div class="preload-params">
+                          <h3 style="color:#ffb347;margin:0 0 16px 0;padding-bottom:8px;border-bottom:1px solid rgba(255,179,71,0.3)">优化参数</h3>
+                          <div class="form-group"><label>最大预紧角 (°):</label><input type="number" id="pl-max" value="120" min="0" max="300" step="5"></div>
+                          <div class="form-group"><label>总扭转角(含预紧) (°):</label><input type="number" id="pl-total" value="360" min="60" max="1080" step="10"></div>
+                          <div class="form-group"><label>弹丸质量 (kg):</label><input type="number" id="pl-mass" value="10" min="0.1" max="500" step="0.5"></div>
+                          <div class="form-group"><label>发射仰角 (°):</label><input type="range" id="pl-angle" min="5" max="85" value="45" step="1"><span id="pl-angle-value">45°</span></div>
+                          <hr class="section-divider">
+                          <div class="form-group"><label>材料:</label>
+                            <select id="pl-material">
+                              <option value="steel65mn">65Mn弹簧钢</option>
+                              <option value="steel50crva">50CrVA弹簧钢</option>
+                              <option value="ox_tendon">牛筋(腱)</option>
+                              <option value="sinew_ox">黄牛肌腱</option>
+                              <option value="hemp_rope">麻绳</option>
+                              <option value="modern_synthetic">现代合成纤维(芳纶)</option>
+                              <option value="modern_steel_alloy">现代合金钢</option>
+                            </select>
+                          </div>
+                          <div class="form-group"><label>钢丝直径 (mm):</label><input type="number" id="pl-wire" value="20" min="1" max="100" step="0.5"></div>
+                          <div class="form-group"><label>弹簧中径 (mm):</label><input type="number" id="pl-mean" value="150" min="10" max="500" step="5"></div>
+                          <div class="form-group"><label>有效圈数:</label><input type="number" id="pl-coils" value="12" min="1" max="100" step="1"></div>
+                          <div class="form-group"><label>采样点数:</label><input type="number" id="pl-steps" value="20" min="5" max="100" step="5"></div>
+                          <hr class="section-divider">
+                          <button id="pl-analyze" class="action-btn primary full-width">分析预紧力影响</button>
+                          <button id="pl-analyze-local" class="action-btn secondary full-width" style="margin-top:8px">(纯前端快速分析)</button>
+                          <p class="input-hint">预紧力可显著增加实际释放的能量<br>并通过效率提升机制放大射程</p>
+                        </div>
+                        <div class="preload-chart-area">
+                          <h3 style="color:#ffb347;margin:0 0 16px 0;padding-bottom:8px;border-bottom:1px solid rgba(255,179,71,0.3)">预紧角 vs 射程 分析曲线</h3>
+                          <div class="preload-optimization-summary">
+                            <div class="preload-summary-card"><div class="sl">基准射程(无预紧)</div><div class="sv" id="pl-baseline">--</div></div>
+                            <div class="preload-summary-card best"><div class="sl">最大射程</div><div class="sv" id="pl-max">--</div></div>
+                            <div class="preload-summary-card improvement"><div class="sl">相对提升</div><div class="sv" id="pl-improve">--</div></div>
+                            <div class="preload-summary-card best"><div class="sl">最优预紧角</div><div class="sv" id="pl-best">--</div></div>
+                          </div>
+                          <div class="canvas-wrapper-in-panel" style="flex:1;min-height:300px"><canvas id="pl-chart-canvas"></canvas></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="tab-content" id="virtual-view">
+                      <div class="feature-tab-content virtual-operation-container">
+                        <div class="virtual-scene-area" id="virt-scene-wrap">
+                          <canvas id="virt-canvas"></canvas>
+                          <div id="virt-hud" style="position:absolute;top:16px;left:16px;background:rgba(10,14,26,0.75);padding:12px 16px;border-radius:10px;border:1px solid rgba(255,179,71,0.3);backdrop-filter:blur(4px);pointer-events:none;font-size:12px;color:#fff;line-height:1.8">
+                            <div style="color:#ffb347;font-weight:600;margin-bottom:4px">虚拟操作控制台</div>
+                            <div>状态: <span id="virt-status" style="color:#c9ff9e">待命中</span></div>
+                            <div>发射速度: <span id="virt-hud-vel">--</span> m/s</div>
+                            <div>预计射程: <span id="virt-hud-range">--</span> m</div>
+                            <div>已发射次数: <span id="virt-fired" style="color:#ffb347">0</span></div>
+                          </div>
+                        </div>
+                        <div class="virtual-controls">
+                          <h3>弹射参数</h3>
+                          <div class="form-group"><label>扭力材料:</label>
+                            <select id="virt-material">
+                              <option value="steel65mn">65Mn弹簧钢</option>
+                              <option value="steel50crva">50CrVA弹簧钢</option>
+                              <option value="ox_tendon">牛筋(腱)</option>
+                              <option value="sinew_ox">黄牛肌腱</option>
+                              <option value="hemp_rope">麻绳</option>
+                              <option value="modern_synthetic">现代合成纤维</option>
+                              <option value="modern_steel_alloy">现代合金钢</option>
+                            </select>
+                          </div>
+                          <div class="form-group"><label>预紧角 (°):</label><input type="range" id="virt-preload" min="0" max="120" value="30" step="1"><span id="virt-preload-value">30°</span></div>
+                          <div class="form-group"><label>附加扭转角 (°):</label><input type="range" id="virt-torsion" min="10" max="360" value="120" step="1"><span id="virt-torsion-value">120°</span></div>
+                          <div class="form-group"><label>发射仰角 (°):</label><input type="range" id="virt-angle" min="5" max="85" value="45" step="1"><span id="virt-angle-value">45°</span></div>
+                          <div class="form-group"><label>弹丸质量 (kg):</label><input type="number" id="virt-mass" value="10" min="0.1" max="200" step="0.5"></div>
+                          <div class="form-group"><label>钢丝直径 (mm):</label><input type="number" id="virt-wire" value="20" min="1" max="100" step="0.5"></div>
+                          <div class="form-group"><label>弹簧中径 (mm):</label><input type="number" id="virt-mean" value="150" min="10" max="500" step="5"></div>
+                          <div class="form-group"><label>有效圈数:</label><input type="number" id="virt-coils" value="12" min="1" max="100" step="1"></div>
+                          <hr class="section-divider">
+                          <div class="gauge-display"><div class="gauge-label">弹簧储能</div><div class="gauge-value" id="virt-energy">--<span class="gauge-unit">kJ</span></div></div>
+                          <div class="gauge-display"><div class="gauge-label">能量转换效率</div><div class="gauge-value" id="virt-eff">--<span class="gauge-unit">%</span></div></div>
+                          <div class="gauge-display"><div class="gauge-label">释放速度</div><div class="gauge-value" id="virt-vel">--<span class="gauge-unit">m/s</span></div></div>
+                          <div class="gauge-display"><div class="gauge-label">预计射程</div><div class="gauge-value" id="virt-range">--<span class="gauge-unit">m</span></div></div>
+                          <div class="launch-readiness ready" id="virt-readiness">● 系统就绪，准备发射</div>
+                          <button id="virt-fire" class="big-action-btn primary">🚀 点击发射</button>
+                          <button id="virt-reset" class="big-action-btn secondary">重置场景</button>
+                        </div>
+                      </div>
+                    </div>
                 </div>
 
                 <div class="data-chart-panel">
@@ -282,6 +418,10 @@
     <script src="js/range_panel.js"></script>
     <script src="js/data-chart.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/material-compare.js"></script>
+    <script src="js/era-compare.js"></script>
+    <script src="js/preload-analysis.js"></script>
+    <script src="js/virtual-operation.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

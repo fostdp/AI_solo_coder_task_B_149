@@ -5,6 +5,7 @@
   "materials": {
     "steel65mn": {
       "name": "65Mn弹簧钢",
+      "era": "modern",
       "shearModulusPa": 79300000000,
       "yieldStrengthPa": 785000000,
       "densityKgM3": 7850,
@@ -15,6 +16,7 @@
     },
     "steel50crva": {
       "name": "50CrVA弹簧钢",
+      "era": "modern",
       "shearModulusPa": 78500000000,
       "yieldStrengthPa": 1080000000,
       "densityKgM3": 7800,
@@ -22,6 +24,61 @@
       "fatigueDuctilityExp": -0.55,
       "cyclicStrengthCoeffPa": 1650000000,
       "cyclicStrengthExp": -0.08
+    },
+    "sinew_ox": {
+      "name": "黄牛肌腱",
+      "era": "ancient",
+      "shearModulusPa": 1200000000,
+      "yieldStrengthPa": 85000000,
+      "densityKgM3": 1200,
+      "fatigueDuctilityCoeff": 1.8,
+      "fatigueDuctilityExp": -0.7,
+      "cyclicStrengthCoeffPa": 280000000,
+      "cyclicStrengthExp": -0.12
+    },
+    "hemp_rope": {
+      "name": "麻绳",
+      "era": "ancient",
+      "shearModulusPa": 800000000,
+      "yieldStrengthPa": 45000000,
+      "densityKgM3": 900,
+      "fatigueDuctilityCoeff": 1.2,
+      "fatigueDuctilityExp": -0.65,
+      "cyclicStrengthCoeffPa": 180000000,
+      "cyclicStrengthExp": -0.10
+    },
+    "ox_tendon": {
+      "name": "牛筋(腱)",
+      "era": "ancient",
+      "shearModulusPa": 1500000000,
+      "yieldStrengthPa": 95000000,
+      "densityKgM3": 1150,
+      "fatigueDuctilityCoeff": 2.0,
+      "fatigueDuctilityExp": -0.72,
+      "cyclicStrengthCoeffPa": 350000000,
+      "cyclicStrengthExp": -0.11
+    },
+    "modern_synthetic": {
+      "name": "现代合成纤维(芳纶/Kevlar)",
+      "era": "modern",
+      "shearModulusPa": 18000000000,
+      "yieldStrengthPa": 3600000000,
+      "densityKgM3": 1440,
+      "fatigueDuctilityCoeff": 0.08,
+      "fatigueDuctilityExp": -0.40,
+      "cyclicStrengthCoeffPa": 5200000000,
+      "cyclicStrengthExp": -0.05
+    },
+    "modern_steel_alloy": {
+      "name": "现代合金钢弹簧",
+      "era": "modern",
+      "shearModulusPa": 82000000000,
+      "yieldStrengthPa": 2200000000,
+      "densityKgM3": 7830,
+      "fatigueDuctilityCoeff": 0.35,
+      "fatigueDuctilityExp": -0.52,
+      "cyclicStrengthCoeffPa": 3200000000,
+      "cyclicStrengthExp": -0.06
     }
   },
   "geometry": {
@@ -51,5 +108,18 @@
     "highStressRatioCap": 0.85,
     "damagePenaltyCoeff": 0.60,
     "efficiencyFloor": 0.50
+  },
+  "preload": {
+    "defaultPreloadAngleDeg": 30,
+    "minPreloadAngleDeg": 0,
+    "maxPreloadAngleDeg": 120,
+    "efficiencyPreloadBoostFactor": 0.08
+  },
+  "trebuchetTypes": {
+    "ancient_traction": { "name": "古代人力牵引式", "era": "ancient", "releaseVelocityBoost": 1.0, "efficiencyMultiplier": 0.60, "massMultiplier": 1.0 },
+    "ancient_torsion": { "name": "古代扭力弹簧式", "era": "ancient", "releaseVelocityBoost": 1.0, "efficiencyMultiplier": 0.85, "massMultiplier": 1.0 },
+    "ancient_counterweight": { "name": "古代配重式", "era": "ancient", "releaseVelocityBoost": 1.0, "efficiencyMultiplier": 0.75, "massMultiplier": 0.3 },
+    "modern_carriage_catapult": { "name": "现代车载弹射器", "era": "modern", "releaseVelocityBoost": 2.5, "efficiencyMultiplier": 0.95, "massMultiplier": 0.02 },
+    "modern_aircraft_catapult": { "name": "现代蒸汽/电磁弹射器", "era": "modern", "releaseVelocityBoost": 5.0, "efficiencyMultiplier": 0.98, "massMultiplier": 0.001 }
   }
 }

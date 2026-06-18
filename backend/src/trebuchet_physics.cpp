@@ -428,7 +428,11 @@ SpringEnergyResult calculateSpringEnergyWithPreload(
         config.cyclic_state = initializeCyclicState(config.material);
     }
 
-    double preload_clamped = std::clamp(preload_angle_rad, 0.0, preload_angle_rad + torsion_angle_rad);
+    double total_angle = preload_angle_rad + torsion_angle_rad;
+    double preload_upper = std::max(0.0, total_angle);
+    double preload_clamped = preload_angle_rad;
+    if (preload_clamped < 0.0) preload_clamped = 0.0;
+    if (preload_clamped > preload_upper) preload_clamped = preload_upper;
     double theta_total = preload_clamped + std::max(0.0, torsion_angle_rad);
     double theta_preload = preload_clamped;
 

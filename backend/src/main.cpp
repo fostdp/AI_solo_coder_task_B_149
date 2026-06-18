@@ -684,6 +684,72 @@ int main(int argc, char* argv[]) {
             }
         });
 
+        http_srv.addGetRoute("/api/preload-tensioning", [&](const http_ns::HttpRequest& req) -> http_ns::HttpResponse {
+            try {
+                double target_preload_deg = getQueryDouble(req, "target_preload_deg", 30.0);
+                double wire_mm = getQueryDouble(req, "wire_mm", 20.0);
+                double mean_mm = getQueryDouble(req, "mean_mm", 150.0);
+                int coils = getQueryInt(req, "coils", 12);
+                std::string mat_id = getQueryStr(req, "material", "steel65mn");
+                int stages = getQueryInt(req, "stages", 4);
+                double hold_sec = getQueryDouble(req, "hold_sec", 5.0);
+                double overpull_deg = getQueryDouble(req, "overpull_deg", 5.0);
+
+                physics_ns::SpringMaterial mat = physics_ns::STEEL_65MN;
+                if (mat_id == "steel50crva") mat = physics_ns::STEEL_50CRVA;
+                else if (mat_id == "sinew_ox") mat = physics_ns::SINEW_OX;
+                else if (mat_id == "hemp_rope") mat = physics_ns::HEMP_ROPE;
+                else if (mat_id == "ox_tendon") mat = physics_ns::OX_TENDON;
+                else if (mat_id == "modern_synthetic") mat = physics_ns::MODERN_SYNTHETIC;
+                else if (mat_id == "modern_steel_alloy") mat = physics_ns::MODERN_STEEL_ALLOY;
+
+                physics_ns::TorsionSpringConfig cfg;
+                cfg.wire_diameter = wire_mm / 1000.0;
+                cfg.coil_mean_diameter = mean_mm / 1000.0;
+                cfg.active_coils = coils;
+                cfg.material = mat;
+                cfg.preload_angle_rad = 0.0;
+                cfg.cyclic_state = physics_ns::initializeCyclicState(mat);
+
+                physics_ns::TensioningResult res = physics_ns::simulatePreloadTensioning(
+                    cfg, target_preload_deg, stages, hold_sec, overpull_deg
+                );
+
+                std::ostringstream stages_json;
+                stages_json << "[";
+                for (size_t i = 0; i < res.stages.size(); ++i) {
+                    if (i > 0) stages_json << ",";
+                    stages_json << "{"
+                                 << "\"stage_index\":" << res.stages[i].stage_index << ","
+                                 << "\"angle_deg\":" << std::fixed << std::setprecision(3) << res.stages[i].angle_deg << ","
+                                 << "\"hold_time_sec\":" << res.stages[i].hold_time_sec << ","
+                                 << "\"stress_mpa\":" << res.stages[i].stress_mpa << ","
+                                 << "\"creep_settlement_pct\":" << res.stages[i].creep_settlement_pct << ","
+                                 << "\"residual_energy_j\":" << res.stages[i].residual_energy_j
+                                 << "}";
+                }
+                stages_json << "]";
+
+                std::ostringstream resp;
+                resp << "{"
+                     << "\"target_preload_angle_deg\":" << res.target_preload_angle_deg << ","
+                     << "\"final_settled_angle_deg\":" << std::fixed << std::setprecision(3) << res.final_settled_angle_deg << ","
+                     << "\"initial_preload_energy_j\":" << res.initial_preload_energy_j << ","
+                     << "\"final_preload_energy_j\":" << res.final_preload_energy_j << ","
+                     << "\"efficiency_after_tensioning\":" << std::fixed << std::setprecision(4) << res.efficiency_after_tensioning << ","
+                     << "\"total_creep_deg\":" << res.total_creep_deg << ","
+                     << "\"overpull_deg\":" << res.overpull_deg << ","
+                     << "\"stages\":" << stages_json.str()
+                     << "}";
+
+                return http_ns::HttpResponse::json(resp.str());
+            } catch (const std::exception& e) {
+                return http_ns::HttpResponse::error(500, std::string("Internal error: ") + e.what());
+            } catch (...) {
+                return http_ns::HttpResponse::error(500, "Unknown internal error");
+            }
+        });
+
     } else {
         LOG_WARN("main", "HTTP API server failed to start");
     }

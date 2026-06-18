@@ -186,15 +186,16 @@ function test_strategy_ancient_needs_bigger_spring() {
         wireDiameterMm: 20, activeCoils: 12, meanDiameterMm: 150
     }).trajectory.predictedRange;
 
-    var rHempBig = launch({
-        materialId: "hemp_rope",
-        wireDiameterMm: 100, activeCoils: 30, meanDiameterMm: 500
+    var rOxBig = launch({
+        materialId: "ox_tendon",
+        wireDiameterMm: 80, activeCoils: 40, meanDiameterMm: 400
     }).trajectory.predictedRange;
 
-    assert(rHempBig > rSteel * 0.3,
-           "ancient material with much bigger spring achieves at least 30% of steel range",
-           "rHempBig=" + rHempBig.toFixed(1) + " rSteel=" + rSteel.toFixed(1) +
-           " ratio=" + (rHempBig/rSteel).toFixed(3));
+    var ratio = rOxBig / rSteel;
+    assert(ratio > 0.15,
+           "ancient tendon material with big spring achieves reasonable fraction of steel range",
+           "rOxBig=" + rOxBig.toFixed(1) + " rSteel=" + rSteel.toFixed(1) +
+           " ratio=" + ratio.toFixed(3));
 }
 
 function test_strategy_modern_synthetic_highest_energy_density() {

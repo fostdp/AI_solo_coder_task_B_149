@@ -646,5 +646,97 @@ std::vector<std::pair<double, double>> analyzePreloadEffect(
     return results;
 }
 
+TensioningResult simulatePreloadTensioning(
+    TorsionSpringConfig& config,
+    double target_preload_angle_deg,
+    int tensioning_stages,
+    double stage_hold_time_sec,
+    double overpull_deg
+) {
+    TensioningResult result;
+    result.target_preload_angle_deg = target_preload_angle_deg;
+    result.overpull_deg = overpull_deg;
+    result.total_creep_deg = 0.0;
+
+    int safe_stages = std::max(1, tensioning_stages);
+    double safe_target = std::max(0.0, target_preload_angle_deg);
+    double safe_overpull = std::max(0.0, overpull_deg);
+    double safe_hold = std::max(0.1, stage_hold_time_sec);
+
+    double total_pretension_deg = safe_target + safe_overpull;
+    double deg_per_stage = total_pretension_deg / safe_stages;
+
+    double relaxation_tau = config.material.relaxation_time_constant_sec;
+    if (relaxation_tau <= 0.0) relaxation_tau = 1800.0;
+
+    double creep_factor_per_stage = config.material.effective_fiber_area_ratio > 0
+        ? 0.02 * (1.0 - config.material.effective_fiber_area_ratio)
+        : 0.005;
+
+    double current_angle_deg = 0.0;
+    double accumulated_creep_deg = 0.0;
+
+    TorsionSpringConfig config_copy = config;
+    config_copy.cyclic_state = initializeCyclicState(config.material);
+
+    for (int i = 0; i < safe_stages; ++i) {
+        TensioningStage stage;
+        stage.stage_index = i + 1;
+        stage.hold_time_sec = safe_hold;
+
+        double target_stage_deg = deg_per_stage * (i + 1);
+        double pull_deg = target_stage_deg - current_angle_deg;
+        pull_deg = std::max(0.0, pull_deg);
+
+        current_angle_deg += pull_deg;
+        stage.angle_deg = current_angle_deg;
+
+        double current_rad = convertDegToRad(current_angle_deg);
+        SpringEnergyResult energy_res = calculateSpringEnergyWithPreload(
+            config_copy, 0.0, current_rad
+        );
+
+        stage.stress_mpa = energy_res.shear_stress / 1e6;
+
+        double creep_settlement = pull_deg * creep_factor_per_stage *
+            (1.0 - std::exp(-safe_hold / relaxation_tau));
+        creep_settlement *= (1.0 + 0.5 * static_cast<double>(i) / safe_stages);
+        stage.creep_settlement_pct = (pull_deg > 0) ? (creep_settlement / pull_deg) * 100.0 : 0.0;
+
+        accumulated_creep_deg += creep_settlement;
+        current_angle_deg -= creep_settlement;
+        current_angle_deg = std::max(0.0, current_angle_deg);
+
+        double residual_rad = convertDegToRad(current_angle_deg);
+        SpringEnergyResult residual_res = calculateSpringEnergyWithPreload(
+            config_copy, 0.0, residual_rad
+        );
+        stage.residual_energy_j = residual_res.stored_energy;
+
+        result.stages.push_back(stage);
+    }
+
+    double overpull_settlement = safe_overpull * creep_factor_per_stage * 0.8;
+    accumulated_creep_deg += overpull_settlement;
+
+    result.total_creep_deg = accumulated_creep_deg;
+    result.final_settled_angle_deg = std::max(0.0, safe_target - accumulated_creep_deg * 0.6);
+
+    double initial_rad = convertDegToRad(safe_target);
+    SpringEnergyResult initial_res = calculateSpringEnergyWithPreload(
+        config_copy, 0.0, initial_rad
+    );
+    result.initial_preload_energy_j = initial_res.stored_energy;
+
+    double final_rad = convertDegToRad(result.final_settled_angle_deg);
+    SpringEnergyResult final_res = calculateSpringEnergyWithPreload(
+        config_copy, 0.0, final_rad
+    );
+    result.final_preload_energy_j = final_res.stored_energy;
+    result.efficiency_after_tensioning = final_res.efficiency;
+
+    return result;
+}
+
 }
 }

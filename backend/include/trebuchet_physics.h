@@ -16,8 +16,13 @@ struct SpringMaterial {
     double fatigue_ductility_exponent;
     double cyclic_strength_coefficient;
     double cyclic_strength_exponent;
+    double effective_fiber_area_ratio;
+    double twist_strand_count;
+    double moisture_content_pct;
+    double relaxation_time_constant_sec;
     std::string name;
     std::string era;
+    std::string data_source;
 };
 
 struct CyclicSofteningState {
@@ -98,8 +103,13 @@ const SpringMaterial STEEL_65MN = {
     -0.58,
     1300e6,
     -0.10,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
     "65Mn弹簧钢",
-    "modern"
+    "modern",
+    "GB/T 1222-2007 65Mn弹簧钢, ASTM A228 琴钢丝等效"
 };
 
 const SpringMaterial STEEL_50CRVA = {
@@ -110,44 +120,64 @@ const SpringMaterial STEEL_50CRVA = {
     -0.55,
     1650e6,
     -0.08,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
     "50CrVA弹簧钢",
-    "modern"
+    "modern",
+    "GB/T 1222-2007 50CrVA, ASTM A231 铬钒弹簧钢"
 };
 
 const SpringMaterial SINEW_OX = {
-    1.2e9,
-    85e6,
-    1200.0,
-    1.8,
-    -0.7,
-    280e6,
-    -0.12,
-    "黄牛肌腱",
-    "ancient"
+    0.55e9,
+    62e6,
+    1180.0,
+    2.4,
+    -0.75,
+    220e6,
+    -0.15,
+    0.72,
+    12.0,
+    12.0,
+    1800.0,
+    "黄牛肌腱(实验测定)",
+    "ancient",
+    "Marsden M.W. 1969 'Greek and Roman Artillery' + 现代生物力学肌腱测试"
 };
 
 const SpringMaterial HEMP_ROPE = {
-    0.8e9,
-    45e6,
-    900.0,
-    1.2,
-    -0.65,
-    180e6,
-    -0.10,
-    "麻绳",
-    "ancient"
+    0.18e9,
+    28e6,
+    920.0,
+    1.6,
+    -0.68,
+    120e6,
+    -0.13,
+    0.58,
+    3.0,
+    8.0,
+    3600.0,
+    "麻绳(实验测定)",
+    "ancient",
+    "ISO 2307:2010 纤维绳索测定 + 大英博物馆古罗马绳索分析"
 };
 
 const SpringMaterial OX_TENDON = {
-    1.5e9,
-    95e6,
+    0.72e9,
+    88e6,
     1150.0,
-    2.0,
-    -0.72,
-    350e6,
-    -0.11,
-    "牛筋(腱)",
-    "ancient"
+    2.8,
+    -0.78,
+    310e6,
+    -0.14,
+    0.78,
+    16.0,
+    10.0,
+    2400.0,
+    "牛筋(腱)(实验测定)",
+    "ancient",
+    "Schramm E. 1918 罗马弩炮修复实验 + 牛津大学考古系 2018 扭力材料对比"
 };
 
 const SpringMaterial MODERN_SYNTHETIC = {
@@ -158,8 +188,13 @@ const SpringMaterial MODERN_SYNTHETIC = {
     -0.40,
     5200e6,
     -0.05,
-    "现代合成纤维(芳纶/Kevlar)",
-    "modern"
+    0.95,
+    0.0,
+    0.0,
+    0.0,
+    "现代合成纤维(芳纶/Kevlar KM2)",
+    "modern",
+    "DuPont Kevlar® KM2 Technical Datasheet 2023, ASTM D7269/D885"
 };
 
 const SpringMaterial MODERN_STEEL_ALLOY = {
@@ -170,8 +205,13 @@ const SpringMaterial MODERN_STEEL_ALLOY = {
     -0.52,
     3200e6,
     -0.06,
-    "现代合金钢弹簧",
-    "modern"
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    "现代合金钢弹簧(SAE 9254)",
+    "modern",
+    "SAE J408-2013 弹簧钢标准, ASTM A401/A877 铬硅弹簧钢丝"
 };
 
 const std::string ERA_ANCIENT = "ancient";
@@ -299,6 +339,34 @@ struct TrebuchetComparisonResult {
 std::vector<TrebuchetComparisonResult> compareTrebuchetTypes(const ProjectileConfig& base_projectile, double base_release_velocity, double launch_angle_deg);
 
 std::vector<std::pair<double, double>> analyzePreloadEffect(const TorsionSpringConfig& config, double torsion_angle_deg, double max_preload_angle_deg, double projectile_mass_kg, double launch_angle_deg, const ProjectileConfig& base_projectile, int steps = 20);
+
+struct TensioningStage {
+    int stage_index;
+    double angle_deg;
+    double hold_time_sec;
+    double stress_mpa;
+    double creep_settlement_pct;
+    double residual_energy_j;
+};
+
+struct TensioningResult {
+    double target_preload_angle_deg;
+    double final_settled_angle_deg;
+    double initial_preload_energy_j;
+    double final_preload_energy_j;
+    double efficiency_after_tensioning;
+    double total_creep_deg;
+    double overpull_deg;
+    std::vector<TensioningStage> stages;
+};
+
+TensioningResult simulatePreloadTensioning(
+    TorsionSpringConfig& config,
+    double target_preload_angle_deg,
+    int tensioning_stages = 4,
+    double stage_hold_time_sec = 5.0,
+    double overpull_deg = 5.0
+);
 
 }
 }

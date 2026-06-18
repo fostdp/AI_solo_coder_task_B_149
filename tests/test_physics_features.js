@@ -227,9 +227,9 @@ function test_velocity_boost_effective() {
     results.forEach(function(r) {
         if (r.typeId === "modern_aircraft_catapult") aircraftVel = r.adjustedVelocity;
     });
-    var expected = 35 * 5.0 * 0.98;
+    var expected = 35 * 4.8 * 0.95;
     assert(approxEq(aircraftVel, expected, 1.0),
-           "aircraft adjustedVelocity = 35*5.0*0.98",
+           "aircraft adjustedVelocity = 35*4.8*0.95",
            "got " + aircraftVel.toFixed(2) + " expected " + expected.toFixed(2));
 }
 

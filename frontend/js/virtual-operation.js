@@ -2,14 +2,15 @@ const VirtualOperation = (function () {
     const PI = Math.PI;
     const GRAVITY = 9.80665;
     const AIR_DENSITY = 1.225;
-    const FIRING_DURATION = 0.3;
-    const LANDED_DURATION = 2.0;
+    const FIRING_DURATION = 0.25;
+    const LANDED_DURATION = 1.5;
     const MAX_TRAJECTORY_POINTS = 300;
     const ARM_LENGTH = 4.0;
     const ARM_SHORT_RATIO = 0.25;
     const ARM_LONG_RATIO = 0.75;
     const HINGE_HEIGHT = 1.5;
-    const DEBOUNCE_DELAY = 100;
+    const DEBOUNCE_DELAY = 80;
+    const LAUNCH_CACHE_TTL_MS = 200;
 
     let canvas, ctx, sceneWrap;
     let canvasWidth = 0, canvasHeight = 0;
@@ -36,7 +37,18 @@ const VirtualOperation = (function () {
         launchAngleDeg: 45,
         impactX: 0,
         impactY: 0,
-        explosionT: 0
+        explosionT: 0,
+        simMassKg: 10,
+        simDiameter: 0.2,
+        simDragCd: 0.47,
+        simArea: PI * 0.1 * 0.1,
+        simViscosity: 0
+    };
+
+    const launchCache = {
+        params: null,
+        result: null,
+        timestamp: 0
     };
 
     const domRefs = {};
@@ -81,44 +93,74 @@ const VirtualOperation = (function () {
         };
     }
 
+    function computeLaunchResult(params) {
+        const material = TrebuchetPhysics.MATERIALS[params.materialId] || TrebuchetPhysics.MATERIALS.steel65mn;
+        const config = {
+            material: material,
+            wireDiameter: params.wireDiameterMm / 1000,
+            coilMeanDiameter: params.meanDiameterMm / 1000,
+            activeCoils: params.activeCoils,
+            cyclicState: TrebuchetPhysics.createCyclicState(material)
+        };
+
+        const torsionAngleRad = degToRad(params.torsionAngleDeg);
+        const preloadAngleRad = degToRad(params.preloadAngleDeg);
+        const spring = TrebuchetPhysics.calculateSpringEnergyWithPreload(
+            config, torsionAngleRad, preloadAngleRad
+        );
+
+        const mass = Math.max(params.massKg, 1e-9);
+        const v = Math.sqrt(2 * spring.storedEnergy * spring.efficiency / mass);
+
+        const projectile = {
+            mass: params.massKg,
+            diameter: 0.2,
+            crossSectionArea: PI * 0.1 * 0.1,
+            dragCoefficientIncompressible: 0.47
+        };
+
+        const traj = TrebuchetPhysics.predictTrajectoryRange(
+            projectile, v, params.launchAngleDeg
+        );
+
+        return {
+            spring: spring,
+            velocity: v,
+            trajectory: traj,
+            config: config,
+            mass: mass,
+            projectile: projectile
+        };
+    }
+
+    function getCachedLaunchResult() {
+        const now = Date.now();
+        const params = readParams();
+        const paramKey = JSON.stringify(params);
+
+        if (launchCache.params === paramKey &&
+            (now - launchCache.timestamp) < LAUNCH_CACHE_TTL_MS) {
+            return launchCache.result;
+        }
+
+        const result = computeLaunchResult(params);
+        launchCache.params = paramKey;
+        launchCache.result = result;
+        launchCache.timestamp = now;
+        return result;
+    }
+
     function updateGauges() {
         try {
-            const params = readParams();
-            const material = TrebuchetPhysics.MATERIALS[params.materialId] || TrebuchetPhysics.MATERIALS.steel65mn;
-            const config = {
-                material: material,
-                wireDiameter: params.wireDiameterMm / 1000,
-                coilMeanDiameter: params.meanDiameterMm / 1000,
-                activeCoils: params.activeCoils,
-                cyclicState: TrebuchetPhysics.createCyclicState(material)
-            };
-
-            const torsionAngleRad = degToRad(params.torsionAngleDeg);
-            const preloadAngleRad = degToRad(params.preloadAngleDeg);
-            const spring = TrebuchetPhysics.calculateSpringEnergyWithPreload(
-                config, torsionAngleRad, preloadAngleRad
-            );
-
-            const mass = Math.max(params.massKg, 1e-9);
-            const v = Math.sqrt(2 * spring.storedEnergy * spring.efficiency / mass);
-
-            const projectile = {
-                mass: params.massKg,
-                diameter: 0.2,
-                crossSectionArea: PI * 0.1 * 0.1,
-                dragCoefficientIncompressible: 0.47
-            };
-
-            const traj = TrebuchetPhysics.predictTrajectoryRange(
-                projectile, v, params.launchAngleDeg
-            );
+            const result = getCachedLaunchResult();
+            const { spring, velocity, trajectory } = result;
 
             domRefs.energy.textContent = (spring.storedEnergy / 1000).toFixed(2);
             domRefs.eff.textContent = (spring.efficiency * 100).toFixed(1);
-            domRefs.vel.textContent = v.toFixed(2);
-            domRefs.range.textContent = traj.predictedRange.toFixed(2);
-            domRefs.hudVel.textContent = v.toFixed(1);
-            domRefs.hudRange.textContent = traj.predictedRange.toFixed(0);
+            domRefs.vel.textContent = velocity.toFixed(2);
+            domRefs.range.textContent = trajectory.predictedRange.toFixed(2);
+            domRefs.hudVel.textContent = velocity.toFixed(1);
+            domRefs.hudRange.textContent = trajectory.predictedRange.toFixed(0);
         } catch (e) {
             console.warn('[VirtualOperation] updateGauges error:', e);
         }
@@ -131,9 +173,11 @@ const VirtualOperation = (function () {
 
     function virtualLaunch() {
         const params = readParams();
-        const result = TrebuchetPhysics.virtualLaunch(params);
+        const cached = getCachedLaunchResult();
         return {
-            ...result,
+            spring: cached.spring,
+            releaseVelocity: cached.velocity,
+            trajectory: cached.trajectory,
             params: params
         };
     }
@@ -159,6 +203,9 @@ const VirtualOperation = (function () {
         try {
             const launchResult = virtualLaunch();
             const params = launchResult.params;
+
+            sceneState.simMassKg = Math.max(params.massKg, 1e-9);
+            sceneState.simViscosity = TrebuchetPhysics.calculateViscosity(288.15);
 
             sceneState.isFiring = true;
             sceneState.phase = 'firing';
@@ -244,11 +291,11 @@ const VirtualOperation = (function () {
     }
 
     function updateReleasingPhase(dt) {
-        const diameter = 0.2;
-        const Cd0 = 0.47;
-        const A = PI * 0.1 * 0.1;
-        const m = readParams().massKg;
-        const mu = TrebuchetPhysics.calculateViscosity(288.15);
+        const diameter = sceneState.simDiameter;
+        const Cd0 = sceneState.simDragCd;
+        const A = sceneState.simArea;
+        const m = sceneState.simMassKg;
+        const mu = sceneState.simViscosity;
 
         const subSteps = 4;
         const subDt = dt / subSteps;

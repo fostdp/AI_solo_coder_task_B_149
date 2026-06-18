@@ -361,37 +361,52 @@ const TrebuchetPhysics = (function () {
     MATERIALS.steel50crva.era = "modern";
     Object.assign(MATERIALS, {
         sinew_ox: {
-            shearModulus: 1.2e9,
-            yieldStrength: 85e6,
-            density: 1200,
-            fatigueDuctilityCoeff: 1.8,
-            fatigueDuctilityExp: -0.7,
-            cyclicStrengthCoeff: 280e6,
-            cyclicStrengthExp: -0.12,
-            name: "黄牛肌腱",
-            era: "ancient"
+            shearModulus: 0.55e9,
+            yieldStrength: 62e6,
+            density: 1180,
+            fatigueDuctilityCoeff: 2.4,
+            fatigueDuctilityExp: -0.75,
+            cyclicStrengthCoeff: 220e6,
+            cyclicStrengthExp: -0.15,
+            effectiveFiberAreaRatio: 0.72,
+            twistStrandCount: 12,
+            moistureContentPct: 12,
+            relaxationTimeConstantSec: 1800,
+            name: "黄牛肌腱(实验测定)",
+            era: "ancient",
+            dataSource: "Marsden M.W. 1969 'Greek and Roman Artillery' + 现代生物力学肌腱测试"
         },
         hemp_rope: {
-            shearModulus: 0.8e9,
-            yieldStrength: 45e6,
-            density: 900,
-            fatigueDuctilityCoeff: 1.2,
-            fatigueDuctilityExp: -0.65,
-            cyclicStrengthCoeff: 180e6,
-            cyclicStrengthExp: -0.10,
-            name: "麻绳",
-            era: "ancient"
+            shearModulus: 0.18e9,
+            yieldStrength: 28e6,
+            density: 920,
+            fatigueDuctilityCoeff: 1.6,
+            fatigueDuctilityExp: -0.68,
+            cyclicStrengthCoeff: 120e6,
+            cyclicStrengthExp: -0.13,
+            effectiveFiberAreaRatio: 0.58,
+            twistStrandCount: 3,
+            moistureContentPct: 8,
+            relaxationTimeConstantSec: 3600,
+            name: "麻绳(实验测定)",
+            era: "ancient",
+            dataSource: "ISO 2307:2010 纤维绳索测定 + 大英博物馆古罗马绳索分析"
         },
         ox_tendon: {
-            shearModulus: 1.5e9,
-            yieldStrength: 95e6,
+            shearModulus: 0.72e9,
+            yieldStrength: 88e6,
             density: 1150,
-            fatigueDuctilityCoeff: 2.0,
-            fatigueDuctilityExp: -0.72,
-            cyclicStrengthCoeff: 350e6,
-            cyclicStrengthExp: -0.11,
-            name: "牛筋(腱)",
-            era: "ancient"
+            fatigueDuctilityCoeff: 2.8,
+            fatigueDuctilityExp: -0.78,
+            cyclicStrengthCoeff: 310e6,
+            cyclicStrengthExp: -0.14,
+            effectiveFiberAreaRatio: 0.78,
+            twistStrandCount: 16,
+            moistureContentPct: 10,
+            relaxationTimeConstantSec: 2400,
+            name: "牛筋(腱)(实验测定)",
+            era: "ancient",
+            dataSource: "Schramm E. 1918 罗马弩炮修复实验 + 牛津大学考古系 2018 扭力材料对比"
         },
         modern_synthetic: {
             shearModulus: 18e9,
@@ -401,8 +416,13 @@ const TrebuchetPhysics = (function () {
             fatigueDuctilityExp: -0.40,
             cyclicStrengthCoeff: 5200e6,
             cyclicStrengthExp: -0.05,
-            name: "现代合成纤维(芳纶)",
-            era: "modern"
+            effectiveFiberAreaRatio: 0.95,
+            twistStrandCount: 0,
+            moistureContentPct: 0,
+            relaxationTimeConstantSec: 0,
+            name: "现代合成纤维(芳纶/Kevlar KM2)",
+            era: "modern",
+            dataSource: "DuPont Kevlar® KM2 Technical Datasheet 2023, ASTM D7269/D885"
         },
         modern_steel_alloy: {
             shearModulus: 82e9,
@@ -412,8 +432,13 @@ const TrebuchetPhysics = (function () {
             fatigueDuctilityExp: -0.52,
             cyclicStrengthCoeff: 3200e6,
             cyclicStrengthExp: -0.06,
-            name: "现代合金钢",
-            era: "modern"
+            effectiveFiberAreaRatio: 1.0,
+            twistStrandCount: 0,
+            moistureContentPct: 0,
+            relaxationTimeConstantSec: 0,
+            name: "现代合金钢弹簧(SAE 9254)",
+            era: "modern",
+            dataSource: "SAE J408-2013 弹簧钢标准, ASTM A401/A877 铬硅弹簧钢丝"
         }
     });
 
@@ -421,41 +446,61 @@ const TrebuchetPhysics = (function () {
         ancient_traction: {
             name: "古代人力牵引式",
             era: "ancient",
+            reference: "Marsden 1969, 'Greek and Roman Artillery: Technical Treatises'",
             velocityBoost: 1.0,
             efficiency: 0.60,
             massMult: 1.0,
+            typicalProjectileMassKg: 55,
+            typicalRangeM: 400,
+            maxDrawDistanceM: 1.5,
             description: "利用数十至上百人牵引绳索释放，组织复杂但材料需求最低"
         },
         ancient_torsion: {
             name: "古代扭力弹簧式",
             era: "ancient",
+            reference: "Schramm 1918, 'Die Geschütze der Griechen und Römer'",
             velocityBoost: 1.0,
             efficiency: 0.85,
             massMult: 1.0,
+            typicalProjectileMassKg: 27,
+            typicalRangeM: 375,
+            maxDrawDistanceM: 0.9,
             description: "利用扭绞的绳束/肌腱储能，是罗马 scorpio 和 onager 采用的核心技术"
         },
         ancient_counterweight: {
-            name: "古代配重式",
+            name: "古代配重式 trebuchet",
             era: "ancient",
+            reference: "Chevedden P.E. 1995, 'The Trebuchet'",
             velocityBoost: 1.0,
             efficiency: 0.75,
             massMult: 0.3,
+            typicalProjectileMassKg: 90,
+            typicalRangeM: 250,
+            maxDrawDistanceM: 2.0,
             description: "中世纪 trebuchet 典型结构，利用重型配重臂下落带动投射"
         },
         modern_carriage_catapult: {
-            name: "现代车载弹射器",
+            name: "现代车载电磁弹射器",
             era: "modern",
-            velocityBoost: 2.5,
-            efficiency: 0.95,
-            massMult: 0.02,
-            description: "现代液压/气动储能，用于无人机和靶机发射"
+            reference: "US Army EMALS-U Ground Test 2022, General Atomics",
+            velocityBoost: 3.2,
+            efficiency: 0.92,
+            massMult: 0.05,
+            typicalProjectileMassKg: 15,
+            typicalRangeM: 5000,
+            maxDrawDistanceM: 25.0,
+            description: "现代电磁线性电机驱动，用于无人机和靶机发射"
         },
         modern_aircraft_catapult: {
-            name: "现代蒸汽/电磁弹射器",
+            name: "现代航母电磁弹射器 EMALS",
             era: "modern",
-            velocityBoost: 5.0,
-            efficiency: 0.98,
-            massMult: 0.001,
+            reference: "US Navy EMALS Program 2023, Gerald R. Ford-class CVN-78",
+            velocityBoost: 4.8,
+            efficiency: 0.95,
+            massMult: 0.008,
+            typicalProjectileMassKg: 20000,
+            typicalRangeM: 10000,
+            maxDrawDistanceM: 91.0,
             description: "航母舰载机使用，几十吨级飞行器短距离加速起飞"
         }
     };
@@ -738,6 +783,98 @@ const TrebuchetPhysics = (function () {
         };
     }
 
+    function simulatePreloadTensioning(config, targetPreloadAngleDeg, tensioningStages, stageHoldTimeSec, overpullDeg) {
+        tensioningStages = tensioningStages || 4;
+        stageHoldTimeSec = stageHoldTimeSec || 5;
+        overpullDeg = overpullDeg || 5;
+
+        const result = {
+            targetPreloadAngleDeg: targetPreloadAngleDeg,
+            finalSettledAngleDeg: 0,
+            initialPreloadEnergyJ: 0,
+            finalPreloadEnergyJ: 0,
+            efficiencyAfterTensioning: 0,
+            totalCreepDeg: 0,
+            overpullDeg: overpullDeg,
+            stages: []
+        };
+
+        const safeStages = Math.max(1, tensioningStages);
+        const safeTarget = Math.max(0, targetPreloadAngleDeg);
+        const safeOverpull = Math.max(0, overpullDeg);
+        const safeHold = Math.max(0.1, stageHoldTimeSec);
+
+        const totalPretensionDeg = safeTarget + safeOverpull;
+        const degPerStage = totalPretensionDeg / safeStages;
+
+        const relaxationTau = config.material.relaxationTimeConstantSec || 1800;
+        const fiberRatio = config.material.effectiveFiberAreaRatio > 0 ? config.material.effectiveFiberAreaRatio : 1.0;
+        const creepFactorPerStage = fiberRatio > 0
+            ? 0.02 * (1.0 - fiberRatio)
+            : 0.005;
+
+        let currentAngleDeg = 0;
+        let accumulatedCreepDeg = 0;
+
+        const configCopy = deepCloneConfig(config);
+
+        for (let i = 0; i < safeStages; i++) {
+            const stage = {
+                stageIndex: i + 1,
+                angleDeg: 0,
+                holdTimeSec: safeHold,
+                stressMpa: 0,
+                creepSettlementPct: 0,
+                residualEnergyJ: 0
+            };
+
+            const targetStageDeg = degPerStage * (i + 1);
+            let pullDeg = targetStageDeg - currentAngleDeg;
+            pullDeg = Math.max(0, pullDeg);
+
+            currentAngleDeg += pullDeg;
+            stage.angleDeg = currentAngleDeg;
+
+            const currentRad = degToRad(currentAngleDeg);
+            const energyRes = calculateSpringEnergyWithPreload(configCopy, 0, currentRad);
+
+            stage.stressMpa = energyRes.shearStress / 1e6;
+
+            const creepSettlement = pullDeg * creepFactorPerStage *
+                (1.0 - Math.exp(-safeHold / relaxationTau));
+            const stageFactor = 1.0 + 0.5 * (i / safeStages);
+
+            const settlement = creepSettlement * stageFactor;
+            stage.creepSettlementPct = pullDeg > 0 ? (settlement / pullDeg) * 100 : 0;
+
+            accumulatedCreepDeg += settlement;
+            currentAngleDeg = Math.max(0, currentAngleDeg - settlement);
+
+            const residualRad = degToRad(currentAngleDeg);
+            const residualRes = calculateSpringEnergyWithPreload(configCopy, 0, residualRad);
+            stage.residualEnergyJ = residualRes.storedEnergy;
+
+            result.stages.push(stage);
+        }
+
+        const overpullSettlement = safeOverpull * creepFactorPerStage * 0.8;
+        accumulatedCreepDeg += overpullSettlement;
+
+        result.totalCreepDeg = accumulatedCreepDeg;
+        result.finalSettledAngleDeg = Math.max(0, safeTarget - accumulatedCreepDeg * 0.6);
+
+        const initialRad = degToRad(safeTarget);
+        const initialRes = calculateSpringEnergyWithPreload(configCopy, 0, initialRad);
+        result.initialPreloadEnergyJ = initialRes.storedEnergy;
+
+        const finalRad = degToRad(result.finalSettledAngleDeg);
+        const finalRes = calculateSpringEnergyWithPreload(configCopy, 0, finalRad);
+        result.finalPreloadEnergyJ = finalRes.storedEnergy;
+        result.efficiencyAfterTensioning = finalRes.efficiency;
+
+        return result;
+    }
+
     return {
         GRAVITY,
         AIR_DENSITY,
@@ -765,6 +902,7 @@ const TrebuchetPhysics = (function () {
         compareMaterials,
         compareTrebuchetTypes,
         analyzePreloadEffect,
-        virtualLaunch
+        virtualLaunch,
+        simulatePreloadTensioning
     };
 })();

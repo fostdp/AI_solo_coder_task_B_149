@@ -124,6 +124,23 @@ const ApiClient = (function () {
         return request('/api/trebuchet-types');
     }
 
+    async function simulateTensioning(params = {}) {
+        const mapping = {
+            targetPreloadAngleDeg: 'target_preload_deg',
+            wireDiameterMm: 'wire_mm',
+            meanDiameterMm: 'mean_mm',
+            activeCoils: 'coils',
+            materialId: 'material',
+            tensioningStages: 'stages',
+            stageHoldTimeSec: 'hold_sec',
+            overpullDeg: 'overpull_deg'
+        };
+        const query = Object.entries(params)
+            .map(([k, v]) => `${mapping[k] || k}=${encodeURIComponent(v)}`)
+            .join('&');
+        return request(`/api/preload-tensioning?${query}`);
+    }
+
     return {
         setBaseUrl,
         health,
@@ -137,6 +154,7 @@ const ApiClient = (function () {
         compareTrebuchets,
         analyzePreload,
         virtualLaunch,
-        getTrebuchetTypes
+        getTrebuchetTypes,
+        simulateTensioning
     };
 })();
